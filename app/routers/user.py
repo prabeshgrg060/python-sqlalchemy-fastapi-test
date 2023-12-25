@@ -1,21 +1,46 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import select
-from app.db_con import SessionLocal
+from app.db_con import engine
 from app.db.db_schema import user
 from app.db.data_models import Usermodel, userget
 import logging
+from datetime import datetime, time
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter()
 
 logger = logging.getLogger(__name__)
 
+total_sessions = 0
+
+def check_time_range():
+
+    current_time = datetime.now().time()
+
+    start_time = time(20, 35)  # 8:10 PM
+    end_time = time(20, 36)     # 9:00 PM
+
+    if start_time <= current_time <= end_time:
+        return False
+
+    return True
+
+
 async def get_db():
+    global total_sessions
+    SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine,class_=AsyncSession)
     async with SessionLocal() as db:
+        total_sessions+=1
         try:
+            if total_sessions >9 and check_time_range() :
+                await asyncio.sleep(120)
             yield db
         finally:
             await db.close()
+            total_sessions-=1
+            print(f'total connection are {total_sessions}')
 
 @router.post('/user/')
 async def create_user(user_data: Usermodel, db: Session = Depends(get_db)):
